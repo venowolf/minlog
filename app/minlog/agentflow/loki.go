@@ -1,4 +1,4 @@
-package loki
+package agentflow
 
 import (
 	"venomouswolf/minlog/app/log"
