@@ -1,10 +1,11 @@
 package log
 
+/*
 import (
+	"encoding/json"
 	"sync"
 
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var once sync.Once
@@ -12,24 +13,26 @@ var logger *zap.Logger
 
 func init() {
 	once.Do(func() {
-		// Create a new logger with default configuration
-		config := zap.NewProductionConfig()
-		config.EncoderConfig = zapcore.EncoderConfig{
-			TimeKey:        "time",
-			LevelKey:       "level",
-			NameKey:        "logger",
-			CallerKey:      "caller",
-			MessageKey:     "message",
-			StacktraceKey:  "stacktrace",
-			LineEnding:     zapcore.DefaultLineEnding,
-			EncodeTime:     zapcore.ISO8601TimeEncoder,
-			EncodeLevel:    zapcore.CapitalLevelEncoder,
-			EncodeDuration: zapcore.StringDurationEncoder,
+		rawJSON := []byte(`{
+			"level": "info",
+			"encoding": "json",
+			"outputPaths": ["stdout", "/tmp/logs"],
+			"errorOutputPaths": ["stderr"],
+			"encoderConfig": {
+			  "messageKey": "message",
+			  "levelKey": "level",
+			  "levelEncoder": "lowercase"
+			}
+		  }`)
+
+		var cfg zap.Config
+		if err := json.Unmarshal(rawJSON, &cfg); err != nil {
+			panic(err)
 		}
-		logger, _ = config.Build()
+		logger = zap.Must(cfg.Build())
 	})
 }
 func GetLogger() *zap.Logger {
-
 	return logger
 }
+*/

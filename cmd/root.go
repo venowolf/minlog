@@ -9,8 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var parg string
-
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "minlog",
@@ -31,14 +29,18 @@ to quickly create a Cobra application.`,
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
+	rootCmd.AddCommand(GetRunCommand())
 	err := rootCmd.Execute()
 	if err != nil {
 		os.Exit(1)
 	}
 }
 
+/*
 func init() {
 	// when this action is called directly.
 	//rootCmd.Flags().StringVarP(&parg, "parg", "a", "", "the path to the log file")
-	rootCmd.PersistentFlags().StringVarP(&parg, "parg", "a", "", "the path to the log file")
+	//rootCmd.PersistentFlags().StringVarP(&parg, "parg", "a", "", "the path to the log file")
+	rootCmd.AddCommand(GetRunCommand())
 }
+*/

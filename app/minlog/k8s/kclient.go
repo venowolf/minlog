@@ -8,22 +8,22 @@ import (
 	"strings"
 	"time"
 	"venomouswolf/minlog/app/global"
-	"venomouswolf/minlog/app/log"
+	"venomouswolf/minlog/app/minlog/agentflow"
 
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog/v2"
 
 	"k8s.io/client-go/tools/clientcmd"
 )
 
 type KClient interface {
-	Start(ctx context.Context) error
+	Run(ctx context.Context)
 	Profilling()
 }
 
@@ -34,16 +34,16 @@ func NewKClient(nn, ns, lokiep string, runningOnly bool) KClient {
 	// creates the in-cluster config
 	//config, err := rest.InClusterConfig()
 	if err != nil {
-		log.GetLogger().Panic("failed to create in-cluster config", zap.String("FatalError", err.Error()))
+		//log.GetLogger().Panic("failed to create in-cluster config", zap.String("FatalError", err.Error()))
 		return nil
 	}
 	kc := &kclient{
-		gsettings: global.NewGSettings(nn, ns, lokiep),
-		zlog:      log.GetLogger(),
+		gsettings: global.NewGSettings(nn, ns, "", lokiep),
+		log:       klog.Background().WithName("kubernetes-client"),
 
 		clientset:   kubernetes.NewForConfigOrDie(config),
 		runningOnly: runningOnly,
-		podmaps:     make(map[string]string),
+		podmaps:     make(map[string]*agentflow.PodInfo),
 		pqueue:      workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[string]()),
 	}
 
@@ -61,7 +61,7 @@ func NewKClient(nn, ns, lokiep string, runningOnly bool) KClient {
 	}
 
 	if ns != "all" && ns != "" {
-		kc.gsettings.Namespaces = strings.Split(ns, ",")
+		kc.gsettings.NameSpaces = strings.Split(ns, ",")
 	}
 
 	return kc
@@ -69,7 +69,6 @@ func NewKClient(nn, ns, lokiep string, runningOnly bool) KClient {
 
 type kclient struct {
 	gsettings *global.GlobalSettings
-	zlog      *zap.Logger
 
 	clientset *kubernetes.Clientset
 
@@ -78,12 +77,14 @@ type kclient struct {
 	// pods keeps all the pods which are running on this node(pods logs will be pushed to loki)
 	// key: namesapace/podname
 	// value: pod's object
-	podmaps map[string]string
+	podmaps map[string]*agentflow.PodInfo
 
 	pqueue workqueue.TypedRateLimitingInterface[string]
+
+	log klog.Logger
 }
 
-func (kc *kclient) startWithNamespace(ctx context.Context, nn string) error {
+func (kc *kclient) initInformerWithNameSpace(nn string) cache.SharedInformer {
 	fs := fields.Set{"spec.nodeName": kc.gsettings.NodeName}
 	if kc.runningOnly {
 		fs["status.phase"] = "Running"
@@ -96,8 +97,8 @@ func (kc *kclient) startWithNamespace(ctx context.Context, nn string) error {
 		AddFunc: func(obj interface{}) {
 			key, err := cache.MetaNamespaceKeyFunc(obj)
 			if err == nil {
-				kc.pqueue.Add(fmt.Sprintf("A#%s", key))
-				kc.zlog.Info("Pod added", zap.String("namespace/name", key))
+				kc.pqueue.Add("A#" + key)
+				kc.log.Info("Pod added " + key)
 			}
 		},
 		UpdateFunc: func(oobj, nobj interface{}) {
@@ -106,69 +107,148 @@ func (kc *kclient) startWithNamespace(ctx context.Context, nn string) error {
 			}
 			key, err := cache.MetaNamespaceKeyFunc(nobj)
 			if err == nil {
-				kc.pqueue.Add(fmt.Sprintf("U#%s", key))
-				kc.zlog.Info("Pod updated", zap.String("namespace/name", key))
+				kc.pqueue.Add("U#" + key)
+				kc.log.Info("Pod updated " + key)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 			if err == nil {
-				kc.pqueue.Add(fmt.Sprintf("D#%s", key))
-				kc.zlog.Info("Pod deleted", zap.String("namespace/name", key))
+				kc.pqueue.Add("D#" + key)
+				kc.log.Info("Pod deleted " + key)
 			}
 		},
 	})
-	go kc.worker(ctx)
-	return nil
+
+	return podInformer
 }
-func (kc *kclient) Start(ctx context.Context) error {
-	if len(kc.gsettings.Namespaces) == 0 {
-		kc.startWithNamespace(ctx, "")
+func (kc *kclient) runInformers(ctx context.Context, stop <-chan struct{}) {
+	if len(kc.gsettings.NameSpaces) == 0 {
+		informer := kc.initInformerWithNameSpace("")
+		go informer.Run(stop)
+
+		if !cache.WaitForCacheSync(stop, informer.HasSynced) {
+			kc.log.Error(fmt.Errorf("Error:CacheSyncError"), "fail to start informer")
+			return
+		}
 	} else {
-		for _, ns := range kc.gsettings.Namespaces {
-			kc.startWithNamespace(ctx, ns)
+		for _, ns := range kc.gsettings.NameSpaces {
+			informer := kc.initInformerWithNameSpace(ns)
+			go informer.Run(stop)
+			if !cache.WaitForCacheSync(stop, informer.HasSynced) {
+				kc.log.Error(fmt.Errorf("Error:CacheSyncError"), "fail to start informer")
+				return
+			}
 		}
 	}
 }
+func (kc *kclient) Run(ctx context.Context) {
+	stop := make(chan struct{})
+	defer func() {
+		kc.pqueue.ShutDown()
+		close(stop)
+	}()
 
-func (kc *kclient) worker(ctx context.Context) {
-	for kc.processNextWorkItem(ctx) {
+	// Let the workers stop when we are done
+	kc.log.Info("Starting minlog controller")
+
+	kc.runInformers(ctx, stop)
+
+	//controller loops
+	go wait.UntilWithContext(ctx, kc.startLoop, time.Second)
+
+	<-ctx.Done()
+}
+
+func (kc *kclient) startLoop(ctx context.Context) {
+	loopfunc := func(ctx context.Context) bool {
+		key, quit := kc.pqueue.Get()
+		if quit {
+			return false
+		}
+		defer kc.pqueue.Done(key)
+
+		kc.syncPodsMap(ctx, key)
+		return true
+	}
+	for loopfunc(ctx) {
 	}
 }
 
-func (kc *kclient) processNextWorkItem(ctx context.Context) bool {
-	key, quit := kc.pqueue.Get()
-	if quit {
-		return false
-	}
-	defer kc.pqueue.Done(key)
-
-	return kc.sync(ctx, key)
-}
-
-func (kc *kclient) sync(ctx context.Context, key string) bool {
-	nnkey := key[3:]
+func (kc *kclient) syncPodsMap(ctx context.Context, key string) {
+	isSynced := false
+	nnkey := key[2:]
 	ns, name, err := cache.SplitMetaNamespaceKey(nnkey)
 	// string convert to
 	if err != nil {
-		kc.zlog.Error("Failed to split meta namespace cache key", zapcore.Field{Type: zapcore.ErrorType, Key: nnkey})
-		return false
+		kc.log.Error(err, "Failed to split meta namespace cache key \""+key+"\"")
+		return
 	}
 
-	startTime := time.Now()
-	kc.zlog.Info("Parse key", zap.String("namespace/name", nnkey), zap.Time("startTime", startTime))
-
 	defer func() {
-		kc.zlog.Info("Finished", zap.String("namespace/name", nnkey), zap.Time("startTime", time.Now()))
+		kc.log.Info("PodMap had already synced...")
 	}()
 	switch key[0:1] {
 	case "A", "U":
 		pod, e := kc.clientset.CoreV1().Pods(ns).Get(ctx, name, metav1.GetOptions{})
 		if e != nil {
-			kc.zlog.Error("Failed to split meta namespace cache key", zapcore.Field{Type: zapcore.ErrorType, Key: key[3:]})
-			return false
+			kc.log.Error(e, "Failed to get pod, podname:"+name)
+			return
 		}
 
+		shas := make([]string, 0, len(pod.Status.ContainerStatuses))
+		for _, container := range pod.Status.ContainerStatuses {
+			cid := strings.Split(container.ContainerID, "//")
+			shas = append(shas, cid[1])
+		}
+		slices.Sort(shas)
+
+		mpod, nexist := kc.podmaps[nnkey]
+		if nexist {
+			mshas := make([]string, len(mpod.ContainerMap))
+			for _, mv := range mpod.ContainerMap {
+				mshas = append(mshas, mv)
+			}
+			slices.Sort(mshas)
+			if strings.Compare(strings.Join(shas, ","), strings.Join(mshas, ",")) == 0 {
+				nexist = true
+			}
+		}
+		if !nexist {
+			pi := &agentflow.PodInfo{
+				NameSpace:    ns,
+				PodName:      name,
+				ContainerMap: kc.getPods(pod),
+				AppLogs:      kc.gsettings.AppLogs,
+				ServiceName:  getServiceNameOfPod(pod),
+			}
+			kc.podmaps[nnkey] = pi
+			isSynced = true
+		}
+	case "D":
+		delete(kc.podmaps, key)
+		kc.log.Info("Delete " + key)
+		isSynced = true
+	}
+	if isSynced {
+		river := agentflow.NewRiver(kc.gsettings)
+		if err := river.GenRiver(kc.podmaps); err == nil {
+			agentflow.NewGaf().Reload()
+		}
+	}
+}
+
+func (kc *kclient) profillingWithNameSpace(nn string) {
+	fs := fields.Set{"spec.nodeName": kc.gsettings.NodeName}
+	if kc.runningOnly {
+		fs["status.phase"] = "Running"
+	}
+	pods, err := kc.clientset.CoreV1().Pods(nn).List(context.TODO(), metav1.ListOptions{FieldSelector: fs.AsSelector().String()})
+	if err != nil {
+		kc.log.Error(err, "Failed to list pods, selector:"+fs.AsSelector().String())
+		return
+	}
+	for _, pod := range pods.Items {
 		shas := make([]string, len(pod.Status.ContainerStatuses))
 		for _, container := range pod.Status.ContainerStatuses {
 			cid := strings.Split(container.ContainerID, "//")
@@ -176,56 +256,35 @@ func (kc *kclient) sync(ctx context.Context, key string) bool {
 		}
 		slices.Sort(shas)
 
-		msha, inew := kc.podmaps[nnkey]
-		if inew {
-			if msha != strings.Join(shas, ",") {
-				inew = false
-			}
-		}
-		if !inew {
-			kc.podmaps[nnkey] = strings.Join(shas, ",")
-			//TODO: Generating a loki config.river, then curl http://grafana-agent-flow:12345/-/reload
-			//minlog.
-		}
-	case "D":
-		log.GetLogger().Info("Pod deleted", zap.String("namespace/name", nnkey))
-	}
-
-	return true
-}
-
-func (kc *kclient) profillingWithNamespace(nn string) {
-	fs := fields.Set{"spec.nodeName": kc.gsettings.NodeName}
-	if kc.runningOnly {
-		fs["status.phase"] = "Running"
-	}
-	pods, err := kc.clientset.CoreV1().Pods(nn).List(context.TODO(), metav1.ListOptions{FieldSelector: fs.AsSelector().String()})
-	if err != nil {
-		kc.zlog.Error("Failed to list pods", zapcore.Field{Type: zapcore.ErrorType, Key: err.Error()})
-		return
-	}
-	for _, pod := range pods.Items {
-		if key, err := cache.MetaNamespaceKeyFunc(pod); err == nil {
-			shas := make([]string, len(pod.Status.ContainerStatuses))
-			for _, container := range pod.Status.ContainerStatuses {
-				cid := strings.Split(container.ContainerID, "//")
-				shas = append(shas, cid[1])
-			}
-			slices.Sort(shas)
-
-			kc.podmaps[key] = strings.Join(shas, ",")
-		} else {
-			kc.zlog.Error("Failed to split meta namespace cache key", zapcore.Field{Type: zapcore.ErrorType, Key: key})
+		kc.podmaps[pod.Namespace+"/"+pod.Name] = &agentflow.PodInfo{
+			PodName:      pod.Name,
+			NameSpace:    pod.Namespace,
+			ServiceName:  getServiceNameOfPod(&pod),
+			ContainerMap: kc.getPods(&pod),
+			AppLogs:      kc.gsettings.AppLogs,
 		}
 	}
 }
+
 func (kc *kclient) Profilling() {
-
-	if len(kc.gsettings.Namespaces) == 0 {
-		kc.profillingWithNamespace("")
+	if len(kc.gsettings.NameSpaces) == 0 {
+		kc.profillingWithNameSpace("")
 	} else {
-		for _, ns := range kc.gsettings.Namespaces {
-			kc.profillingWithNamespace(ns)
+		for _, ns := range kc.gsettings.NameSpaces {
+			kc.profillingWithNameSpace(ns)
 		}
 	}
+	if err := agentflow.NewRiver(kc.gsettings).GenRiver(kc.podmaps); err == nil {
+		agentflow.NewGaf().Reload()
+	}
+}
+
+func (kc *kclient) getPods(pod *v1.Pod) map[string]string {
+	containers := map[string]string{}
+	for _, ap := range pod.Status.ContainerStatuses {
+		if cid := strings.Split(ap.ContainerID, "//"); len(cid) > 1 {
+			containers[ap.Name] = cid[1]
+		}
+	}
+	return containers
 }

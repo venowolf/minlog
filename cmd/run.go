@@ -5,45 +5,15 @@ package cmd
 
 import (
 	"context"
-	"fmt"
-	"os"
 
-	"venomouswolf/minlog/app/log"
+	"venomouswolf/minlog/app/global"
 	"venomouswolf/minlog/app/minlog/k8s"
 
 	"github.com/spf13/cobra"
 )
 
-var runCmd *cobra.Command = nil
-var rh *runHelper = nil
-
-func init() {
-	runCmd = &cobra.Command{
-		Use:   "run",
-		Short: "daemon process, which will run in the background",
-		Long:  `Deployed as daemonset in kubenetes cluster as well`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			l := log.GetLogger()
-			l.Info(fmt.Sprintf("%v", os.Args))
-			l.Info("minlog starting...")
-
-			return rh.start(context.Background())
-		},
-	}
-
-	rh = &runHelper{
-		runCmd: runCmd,
-	}
-
-	rh.parseFlags()
-
-	rootCmd.AddCommand(runCmd)
-}
-
 // runCmdHelper is a *cobra.Command, and holding the command line arguments
-type runHelper struct {
-	runCmd *cobra.Command
-
+var (
 	//labelNodeName used to specify the host label, if not specified, it will be default to the host name
 	labelNodeName string
 
@@ -52,29 +22,41 @@ type runHelper struct {
 
 	//rPhaseOnly, will only push the running-pod logs, default to true
 	rPhaseOnly bool
-
 	//loki endpoint
 	lokiep string
+)
+
+var runCmd *cobra.Command = &cobra.Command{
+	Use:   "run",
+	Short: "daemon process, which will run in the background",
+	Long:  `Deployed as daemonset in kubenetes cluster as well`,
+	Run: func(cmd *cobra.Command, args []string) {
+		//l := log.GetLogger()
+		//l.Sugar().Infof("%v", os.Args)
+		//l.Sugar().Info("minlog starting...")
+		// checking grafana-agent-flow health
+		//create k8s client
+		kc := k8s.NewKClient(labelNodeName, nameSpace, lokiep, rPhaseOnly)
+		//at first, get all pods in the node
+		kc.Profilling()
+		kc.Run(context.Background())
+	},
 }
 
-func (r *runHelper) parseFlags() {
+func init() {
+	runCmd.Flags().BoolVar(&rPhaseOnly, "running-only", true, "only push the running-pod logs")
 
-	r.runCmd.Flags().BoolVarP(&r.rPhaseOnly, "running-pod-only", "r", true, "only push the running-pod logs")
+	runCmd.Flags().StringVar(&labelNodeName, "label-nodename", "", "specify the node node name, pod.spec.nodeName")
 
-	r.runCmd.Flags().StringVarP(&r.labelNodeName, "label-nodename", "h", "", "specify the node node name, pod.spec.nodeName")
+	runCmd.Flags().StringVar(&nameSpace, "namespace", "", "specify the namespace, pod.metedata.namespace")
 
-	r.runCmd.Flags().StringVarP(&r.nameSpace, "namespace", "n", "", "specify the namespace, pod.metedata.namespace")
+	runCmd.Flags().StringVar(&lokiep, "loki", "http://loki:3100/loki/api/v1/push", "loki api url, http://loki:3100/loki/api/v1/push")
 
-	r.runCmd.Flags().StringVarP(&r.lokiep, "loki", "l", "http://loki:3100/loki/api/v1/push", "loki api url, http://loki:3100/loki/api/v1/push")
+	runCmd.Flags().StringVar(&global.RiverFile, "river-file", "/etc/grafana-agent-flow.river", "grafana-agent-flow.river, same config file with grafana-agent-flow process")
+
+	runCmd.Flags().StringVar(&global.Gafurl, "agent-url", "http://127.0.0.1:12345", "grafana-agent-flow restful api")
 }
 
-func (r *runHelper) start(ctx context.Context) error {
-	// checking grafana-agent-flow health
-	//create k8s client
-	kc := k8s.NewKClient(r.labelNodeName, r.nameSpace, r.lokiep, r.rPhaseOnly)
-
-	//at first, get all pods in the node
-	kc.Profilling()
-
-	return kc.Start(ctx)
+func GetRunCommand() *cobra.Command {
+	return runCmd
 }

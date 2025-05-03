@@ -9,7 +9,7 @@
             "type": "go",
             "request": "launch",
             "mode": "debug",
-            "args": ["run"],
+            "args": ["run", "--running-only", "--label-nodename", "k8s192", "--loki", "http://10.101.196.127:3100/loki/api/v1/push", "--namespace", "default,kube-system"],
             "program": "${file}"
         }
     ]
