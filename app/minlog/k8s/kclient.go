@@ -7,43 +7,43 @@ import (
 	"slices"
 	"strings"
 	"time"
-	"venomouswolf/minlog/app/global"
-	"venomouswolf/minlog/app/minlog/agentflow"
+	"venowolf/minlog/app/global"
+	"venowolf/minlog/app/minlog/grafanaalloy"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
-
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 type KClient interface {
 	Run(ctx context.Context)
-	Profilling()
+	Profilling(rYes bool)
 }
 
-func NewKClient(nn, ns, lokiep string, runningOnly bool) KClient {
-	// creates the out-cluster config
-	config, err := clientcmd.BuildConfigFromFlags("", "/root/.kube/config")
-
+func NewKClient(nn, ns string, runningOnly bool) KClient {
+	/*
+		// creates the out-cluster config
+		config, err := clientcmd.BuildConfigFromFlags("", "/root/.kube/config")
+	*/
 	// creates the in-cluster config
-	//config, err := rest.InClusterConfig()
+	config, err := rest.InClusterConfig()
 	if err != nil {
 		//log.GetLogger().Panic("failed to create in-cluster config", zap.String("FatalError", err.Error()))
 		return nil
 	}
 	kc := &kclient{
-		gsettings: global.NewGSettings(nn, ns, "", lokiep),
+		gsettings: global.NewGSettings(nn, ns),
 		log:       klog.Background().WithName("kubernetes-client"),
 
 		clientset:   kubernetes.NewForConfigOrDie(config),
 		runningOnly: runningOnly,
-		podmaps:     make(map[string]*agentflow.PodInfo),
+		podmaps:     make(map[string]*grafanaalloy.PodInfo),
 		pqueue:      workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[string]()),
 	}
 
@@ -77,7 +77,7 @@ type kclient struct {
 	// pods keeps all the pods which are running on this node(pods logs will be pushed to loki)
 	// key: namesapace/podname
 	// value: pod's object
-	podmaps map[string]*agentflow.PodInfo
+	podmaps map[string]*grafanaalloy.PodInfo
 
 	pqueue workqueue.TypedRateLimitingInterface[string]
 
@@ -215,7 +215,7 @@ func (kc *kclient) syncPodsMap(ctx context.Context, key string) {
 			}
 		}
 		if !nexist {
-			pi := &agentflow.PodInfo{
+			pi := &grafanaalloy.PodInfo{
 				NameSpace:    ns,
 				PodName:      name,
 				ContainerMap: kc.getPods(pod),
@@ -231,9 +231,8 @@ func (kc *kclient) syncPodsMap(ctx context.Context, key string) {
 		isSynced = true
 	}
 	if isSynced {
-		river := agentflow.NewRiver(kc.gsettings)
-		if err := river.GenRiver(kc.podmaps); err == nil {
-			agentflow.NewGaf().Reload()
+		if err := grafanaalloy.NewAlloyFile(kc.gsettings).GenAlloyFile(kc.podmaps); err == nil {
+			grafanaalloy.NewGAlloy().Reload()
 		}
 	}
 }
@@ -256,7 +255,7 @@ func (kc *kclient) profillingWithNameSpace(nn string) {
 		}
 		slices.Sort(shas)
 
-		kc.podmaps[pod.Namespace+"/"+pod.Name] = &agentflow.PodInfo{
+		kc.podmaps[pod.Namespace+"/"+pod.Name] = &grafanaalloy.PodInfo{
 			PodName:      pod.Name,
 			NameSpace:    pod.Namespace,
 			ServiceName:  getServiceNameOfPod(&pod),
@@ -266,7 +265,7 @@ func (kc *kclient) profillingWithNameSpace(nn string) {
 	}
 }
 
-func (kc *kclient) Profilling() {
+func (kc *kclient) Profilling(rYes bool) {
 	if len(kc.gsettings.NameSpaces) == 0 {
 		kc.profillingWithNameSpace("")
 	} else {
@@ -274,8 +273,8 @@ func (kc *kclient) Profilling() {
 			kc.profillingWithNameSpace(ns)
 		}
 	}
-	if err := agentflow.NewRiver(kc.gsettings).GenRiver(kc.podmaps); err == nil {
-		agentflow.NewGaf().Reload()
+	if err := grafanaalloy.NewAlloyFile(kc.gsettings).GenAlloyFile(kc.podmaps); err == nil && rYes {
+		grafanaalloy.NewGAlloy().Reload()
 	}
 }
 

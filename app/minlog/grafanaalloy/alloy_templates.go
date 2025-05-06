@@ -1,6 +1,6 @@
-package agentflow
+package grafanaalloy
 
-var agentflow_template string = `
+var alloy_template string = `
 logging {
     level = "warn"
 }

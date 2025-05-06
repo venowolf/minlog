@@ -1,52 +1,52 @@
-package agentflow
+package grafanaalloy
 
 import (
 	"errors"
 	"net/http"
 	"strings"
 	"time"
-	"venomouswolf/minlog/app/global"
+	"venowolf/minlog/app/global"
 
 	"k8s.io/klog/v2"
 )
 
-// gaf --> grafana agent flow
-// update loki configure file loki.river
+// galloy --> grafana alloy
+// update grafana alloy configure file alloy.alloy
 
-type Gaf interface {
+type GAlloy interface {
 	Reload() error
 }
 
-type gaf struct {
+type galloy struct {
 	log klog.Logger
 
 	//ready check, retry times, default 5 * 15 time.Second
 	readycheck int
 }
 
-func NewGaf() Gaf {
-	g := &gaf{
+func NewGAlloy() GAlloy {
+	g := &galloy{
 		readycheck: 5,
-		log:        klog.Background().WithName("loki-server"),
+		log:        klog.Background().WithName("grafana-alloy"),
 	}
-	g.log.Info("Creating loki-server object")
+	g.log.Info("Creating grafana alloy wrapper object")
 	return g
 }
 
-func (g *gaf) Reload() error {
+func (g *galloy) Reload() error {
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
 
 	readyYes := false
 
-	readyr, _ := http.NewRequest("GET", global.Gafurl+"/-/ready", strings.NewReader(""))
+	readyr, _ := http.NewRequest("GET", global.GAlloyurl+"/-/ready", strings.NewReader(""))
 	readyr.Header.Set("Content-Type", "application/json")
 	for i := 0; i < g.readycheck; i++ {
 		if readyresp, e := client.Do(readyr); e == nil {
 			rb := make([]byte, 0, 64)
 			if _, e = readyresp.Body.Read(rb); e == nil {
-				if string(rb) == "Agent is ready." {
+				if string(rb) == "Alloy is ready." {
 					readyYes = true
 					break
 				}
@@ -57,12 +57,12 @@ func (g *gaf) Reload() error {
 		}
 	}
 	if !readyYes {
-		err := errors.New("Grafana-agent-flowError")
-		g.log.Error(err, "Grafana agent flow is not ready")
+		err := errors.New("Grafana-alloyError")
+		g.log.Error(err, "Grafana alloy  is not ready")
 		return err
 	}
 
-	req, _ := http.NewRequest("POST", global.Gafurl+"/-/reload", strings.NewReader(""))
+	req, _ := http.NewRequest("POST", global.GAlloyurl+"/-/reload", strings.NewReader(""))
 	req.Header.Set("Content-Type", "application/json")
 	//req.AddCookie(&http.Cookie{Name: "session", Value: "abc"})
 

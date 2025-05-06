@@ -1,20 +1,16 @@
-/*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
-	"context"
-
 	"venowolf/minlog/app/minlog/k8s"
 
 	"github.com/spf13/cobra"
 )
 
-var runCmd *cobra.Command = &cobra.Command{
-	Use:   "run",
-	Short: "daemon process, which will run in the background",
-	Long:  `Deployed as daemonset in kubenetes cluster as well`,
+var profileCmd *cobra.Command = &cobra.Command{
+
+	Use:   "profile",
+	Short: "create river file only, not send request to reloading grafana-agent-flow",
+	Long:  `running in initcontainer "minlog profile"`,
 	Run: func(cmd *cobra.Command, args []string) {
 		//l := log.GetLogger()
 		//l.Sugar().Infof("%v", os.Args)
@@ -23,15 +19,14 @@ var runCmd *cobra.Command = &cobra.Command{
 		//create k8s client
 		kc := k8s.NewKClient(labelNodeName, nameSpace, rPhaseOnly)
 		//at first, get all pods in the node
-		kc.Profilling(true)
-		kc.Run(context.Background())
+		kc.Profilling(false)
 	},
 }
 
 func init() {
-	parseflags(runCmd)
+	parseflags(profileCmd)
 }
 
-func GetRunCommand() *cobra.Command {
-	return runCmd
+func GetProfileCommand() *cobra.Command {
+	return profileCmd
 }

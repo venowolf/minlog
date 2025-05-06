@@ -5,10 +5,19 @@ import (
 	"strings"
 )
 
-var RiverFile string
+// global setttings, initialize in argparse or mod initializing
+var AlloyFile string
+var GAlloyurl string
+var applogsdir string
+var Lokiep string
 
-// grafana-agent-flow url, default http://127.0.0.1:12345
-var Gafurl string = "http://127.0.0.1:12345"
+func init() {
+	/* default value is from global environment variables which defined in dockerfile
+	Gafurl = os.Getenv("ALLOYURL")
+	Lokiep = os.Getenv("LOKIEP")
+	*/
+	applogsdir = GetFromEnvOrDefaultValue("APPLOGSDIR")
+}
 
 // store global settings, including namespace, nodename, k8s-dns, loki-endpoint, etc..
 type GlobalSettings struct {
@@ -25,10 +34,28 @@ type GlobalSettings struct {
 	AppLogs string
 }
 
-func NewGSettings(nn, ns, logdir, lokiep string) *GlobalSettings {
-	// initialize namespaces, grafana-agent-flow will push those pods which running in these namespaces to lokiep
+func GetFromEnvOrDefaultValue(key string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		switch key {
+		case "ALLOYURL":
+			value = "http://127.0.0.1:12345"
+		case "LOKIEP":
+			value = "http://loki:3100/loki/api/v1/push"
+		case "APPLOGSDIR":
+			value = "/var/log/containers"
+		case "ALLOYFILE":
+			value = "/app/confs/grafana-alloy.alloy"
+		}
+	}
+	return value
+}
+
+func NewGSettings(nn, ns string) *GlobalSettings {
+	// initialize namespaces, grafana-alloy will push those pods which running in these namespaces to lokiep
 	gs := &GlobalSettings{
-		Lokiep: lokiep,
+		Lokiep:  Lokiep,
+		AppLogs: applogsdir,
 	}
 	if ns == "" || ns == "all" {
 		gs.NameSpaces = make([]string, 0)
@@ -41,11 +68,6 @@ func NewGSettings(nn, ns, logdir, lokiep string) *GlobalSettings {
 		gs.NodeName = os.Getenv("HOSTNAME")
 	} else {
 		gs.NodeName = nn
-	}
-	if logdir == "" {
-		gs.AppLogs = "/var/log/containers"
-	} else {
-		gs.AppLogs = logdir
 	}
 
 	gs.NodeNameWithOutDash = strings.ReplaceAll(gs.NodeName, "-", "")
