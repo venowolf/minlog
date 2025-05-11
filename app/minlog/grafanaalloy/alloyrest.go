@@ -11,7 +11,7 @@ import (
 )
 
 // galloy --> grafana alloy
-// update grafana alloy configure file alloy.alloy
+// update grafana alloy configure file config.alloy
 
 type GAlloy interface {
 	Reload() error

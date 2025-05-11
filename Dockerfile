@@ -10,6 +10,6 @@ ADD minlog /app/minlog
 ADD startup.sh /app/startup.sh
 
 
-ENV GRAFANAALLOYFILE /app/confs/alloy.alloy
+ENV GRAFANAALLOYFILE /app/confs/config.alloy
 
 CMD ["sh", "-c", "/app/startup.sh"]

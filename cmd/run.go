@@ -19,7 +19,7 @@ var runCmd *cobra.Command = &cobra.Command{
 		//l := log.GetLogger()
 		//l.Sugar().Infof("%v", os.Args)
 		//l.Sugar().Info("minlog starting...")
-		// checking grafana-agent-flow health
+		// checking grafana-alloy health
 		//create k8s client
 		kc := k8s.NewKClient(labelNodeName, nameSpace, rPhaseOnly)
 		//at first, get all pods in the node

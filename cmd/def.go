@@ -31,7 +31,7 @@ func parseflags(c *cobra.Command) {
 
 	c.Flags().StringVar(&lokiep, "loki", global.GetFromEnvOrDefaultValue("LOKIEP"), "loki api url, http://loki:3100/loki/api/v1/push")
 
-	c.Flags().StringVar(&global.AlloyFile, "alloy-file", global.GetFromEnvOrDefaultValue(""), "alloy.alloy, same config file with grafana-alloy process")
+	c.Flags().StringVar(&global.AlloyFile, "alloy-file", global.GetFromEnvOrDefaultValue(""), "config.alloy, same config file with grafana-alloy process")
 
 	c.Flags().StringVar(&global.GAlloyurl, "alloy-url", global.GetFromEnvOrDefaultValue("ALLOYURL"), "grafana-alloy restful api")
 }

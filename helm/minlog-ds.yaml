@@ -30,7 +30,7 @@ spec:
         command: |
           /app/startup.sh -c profile
         volumeMounts:
-        - name: valloy
+        - name: valloyconfs
           mountPath: /app/confs
 
       containers:
@@ -51,7 +51,7 @@ spec:
         volumeMounts:
         - name: vvarlog
           mountPath: /var/log
-        - name: vriver
+        - name: valloyconfs
           mountPath: /app/confs
       - name: minlog
         image: docker.io/venowolf/minlog:latest
@@ -75,7 +75,7 @@ spec:
             cpu: 100m
             memory: 200Mi
         volumeMounts:
-        - name: valloy
+        - name: valloyconfs
           mountPath: /app/confs
       # it may be desirable to set a high priority class to ensure that a DaemonSet Pod
       # preempts running Pods

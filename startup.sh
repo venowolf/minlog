@@ -4,7 +4,7 @@ hn=${HOSTNAME}
 lep=${LOKIEP:-http://loki:3100/loki/api/v1/push}
 ro=${RUNNINGONLY:-true}
 scmd="run"
-alloyfile=${ALLOYFILE:-/app/confs/alloy.alloy}
+alloyfile=${ALLOYFILE:-/app/confs/config.alloy}
 ns=${NAMESPACES}
 
 
