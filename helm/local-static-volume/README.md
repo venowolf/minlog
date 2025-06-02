@@ -55,3 +55,13 @@ local-pv-98724ea2                          24Gi       RWO            Delete     
 local-pv-9fd2def3                          24Gi       RWO            Delete           Available                         fast-disks              
 root@k8s190:/root# 
 ```
+5. tips(createlvm.sh to create lvm)
+```
+createlvm.sh usage
+-d block device, e.g. -d /dev/sdb
+-t fs type, default: ext4 for ubuntu and xfs for centos
+-m mount point, default: /mnt/fast-disks
+-g vg-name, default: mlogvg
+-i index-lvm size, default: 10 percent of the block device
+-c chunk-lvm size, default: 90 percent of the block device
+```

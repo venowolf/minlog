@@ -4,10 +4,17 @@
 
 Starting with Loki v2.8, TSDB is the recommended Loki index, and, object storage has better scalability than filesystem. Both time series DB and object storage are IO-intensive applications. High-performance storage solutions are a prerequisite for good log management.
 
+Compared with network storage, local volumes have better performance. K8s supports hostPath and local persistent storage (https://kubernetes.io/docs/concepts/storage/volumes/#local).
+
 This directory contains documentation for deploying minlog with helm. It is split into the following parts:
 
-* `persistentvolume/`: deploying local persistent volume.
-  Local volumes are preferred for better performance. However, if the cluster already has high-performance storage (such as distributed storage or cloud storage), there is no need to deploy local volumes again.
+* `local-static-volume/`: deploy persistent volume(https://github.com/kubernetes-sigs/sig-storage-local-static-provisioner.git).
+Deploy local static storage and support dynamic PVC based on block devices.
+* `local-storage/`: deploy persistent volume(k8s local volumes)
+Must set a PersistentVolume nodeAffinity when using local volumes.
+* `hostpath/`: deploy persistent volume(k8s hostpath)
+Create local path for loki
+* `loki-sc.yaml`: 
 
 ## Preview the website
 
