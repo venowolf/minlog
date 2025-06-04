@@ -1,5 +1,9 @@
 deploymentMode: SimpleScalable
 loki:
+  image:
+    registry: null
+    repository: crpi-2re4a582sqaza89h.cn-hangzhou.personal.cr.aliyuncs.com/venomous/loki
+    tag: 3.4.2
   auth_enabled: false
   schemaConfig:
     configs:
@@ -21,20 +25,39 @@ loki:
     allow_structured_metadata: true
     volume_enabled: true
   storage:
-    type: alibabacloud
-    alibabacloud:
+    # aliyun oss settings
+    type: s3
+    s3:
+      s3: oss-cn-beijing.aliyuncs.com
       endpoint: oss-cn-beijing.aliyuncs.com
       region: cn-beijing
       accessKeyId: ""
       secretAccessKey: ""
     bucketNames:
-      chunks: venowolf
+      chunks: minlog-chunks
+      admin: minlog-admin
+      ruler: minlog-ruler
+  podSecurityContext:
+    fsGroup: 0
+    runAsGroup: 0
+    runAsNonRoot: false
+    runAsUser: 0
+
 memcached:
   podSecurityContext:
     runAsNonRoot: false
     fsGroup: 0
     runAsGroup: 0
     runAsUser: 0
+  image:
+    # -- Memcached Docker image repository
+    repository: crpi-2re4a582sqaza89h.cn-hangzhou.personal.cr.aliyuncs.com/venomous/memcached
+    # -- Memcached Docker image tag
+    tag: 1.6.38-alpine
+
+memcachedExporter:
+  # -- Whether memcached metrics should be exported
+  enabled: false
 
 resultsCache:
   allocatedMemory: 1024
@@ -81,7 +104,7 @@ write:
     volumeClaimsEnabled: false
     dataVolumehostPath:
       hostPath:
-        path: /data/loki/writewwww
+        path: /data/loki/write
         type: DirectoryOrCreate
 
 backend:
@@ -112,8 +135,14 @@ backend:
     volumeClaimsEnabled: false
     dataVolumehostPath:
       hostPath:
-        path: /data/loki/backendbbbb
+        path: /data/loki/backend
         type: DirectoryOrCreate
+sidecar:
+  image:
+    # -- The Docker registry and image for the k8s sidecar
+    repository: crpi-2re4a582sqaza89h.cn-hangzhou.personal.cr.aliyuncs.com/venomous/k8s-sidecar
+    # -- Docker image tag
+    tag: 1.30.2
 
     
   # Enable minio for storage

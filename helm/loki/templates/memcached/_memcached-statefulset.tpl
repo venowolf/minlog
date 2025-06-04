@@ -110,7 +110,7 @@ spec:
             - -I {{ .maxItemMemory }}m
             - -c {{ .connectionLimit }}
             - -v
-            - -u {{ .port }}
+            - -u {{ if $.ctx.Values.memcached.podSecurityContext.runAsNonRoot }}{{ $.ctx.Values.memcached.podSecurityContext.runAsUser }}{{ else }}root{{- end }}
             {{- range $key, $value := .extraArgs }}
             - "-{{ $key }}{{ if $value }} {{ $value }}{{ end }}"
             {{- end }}
