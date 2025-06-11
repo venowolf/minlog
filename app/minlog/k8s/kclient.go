@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 )
@@ -26,13 +27,18 @@ type KClient interface {
 	Profilling(rYes bool)
 }
 
-func NewKClient(nn, ns string, runningOnly bool) KClient {
-	/*
+func NewKClient(nn, ns string, inCluster, runningOnly bool) KClient {
+	var config *rest.Config = nil
+	var err error = nil
+	if inCluster {
+		// creates the in-cluster config
+		config, err = rest.InClusterConfig()
+
+	} else {
 		// creates the out-cluster config
-		config, err := clientcmd.BuildConfigFromFlags("", "/root/.kube/config")
-	*/
-	// creates the in-cluster config
-	config, err := rest.InClusterConfig()
+		config, err = clientcmd.BuildConfigFromFlags("", "/root/.kube/config")
+
+	}
 	if err != nil {
 		//log.GetLogger().Panic("failed to create in-cluster config", zap.String("FatalError", err.Error()))
 		return nil
@@ -248,10 +254,11 @@ func (kc *kclient) profillingWithNameSpace(nn string) {
 		return
 	}
 	for _, pod := range pods.Items {
-		shas := make([]string, len(pod.Status.ContainerStatuses))
+		shas := []string{}
 		for _, container := range pod.Status.ContainerStatuses {
-			cid := strings.Split(container.ContainerID, "//")
-			shas = append(shas, cid[1])
+			if cid := strings.Split(container.ContainerID, "//"); len(cid) > 1 {
+				shas = append(shas, cid[1])
+			}
 		}
 		slices.Sort(shas)
 

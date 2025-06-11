@@ -45,7 +45,7 @@ func GetFromEnvOrDefaultValue(key string) string {
 		case "APPLOGSDIR":
 			value = "/var/log/containers"
 		case "ALLOYFILE":
-			value = "/app/confs/grafana-alloy.alloy"
+			value = "/etc/alloy/alloy.alloy"
 		}
 	}
 	return value

@@ -17,7 +17,7 @@ var profileCmd *cobra.Command = &cobra.Command{
 		//l.Sugar().Info("minlog starting...")
 		// checking grafana-alloy health
 		//create k8s client
-		kc := k8s.NewKClient(labelNodeName, nameSpace, rPhaseOnly)
+		kc := k8s.NewKClient(labelNodeName, nameSpaces, inCluster, rPhaseOnly)
 		//at first, get all pods in the node
 		kc.Profilling(false)
 	},
