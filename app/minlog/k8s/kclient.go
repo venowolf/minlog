@@ -41,6 +41,7 @@ func NewKClient(nn, ns string, inCluster, runningOnly bool) KClient {
 	}
 	if err != nil {
 		//log.GetLogger().Panic("failed to create in-cluster config", zap.String("FatalError", err.Error()))
+		klog.Background().WithName("kubernetes-client").Error(err, "Failed to create kubernetes config")
 		return nil
 	}
 	kc := &kclient{

@@ -1,12 +1,12 @@
 #! /bin/bash
 
-hn=${HOSTNAME}
+hn=""
 lep=${LOKIEP:-http://loki:3100/loki/api/v1/push}
-ro=${RUNNINGONLY:-true}
+ro=${RUNNINGONLY:-false}
 scmd="run"
-alloyfile=${ALLOYFILE:-/etc/alloy/alloy.alloy}
+alloyfile=${ALLOYFILE:-/etc/alloy/config.alloy}
 ns=${NAMESPACES}
-incluster=0
+incluster="false"
 
 
 while getopts ":rl:h:c:f:n:k" opt; do
@@ -27,7 +27,7 @@ while getopts ":rl:h:c:f:n:k" opt; do
             alloyfile=$OPTARG
             ;;
         k)
-            incluster=1
+            incluster="true"
             ;;
         n)
             ns=$OPTARG
@@ -49,7 +49,7 @@ fi
 if [[ "${ro,,}" == "true" || "${ro,,}" == "yes" ]]; then
     margs="${margs} --running-only"
 fi
-if [[ ${incluster} -eq 1 ]]; then
+if [[ "${incluster,,}" == "true" ]]; then
     margs="${margs} --running-in-cluster"
 fi
 echo "running: /app/minlog ${scmd} ${margs}"
