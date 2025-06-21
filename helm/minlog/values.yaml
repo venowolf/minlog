@@ -1,0 +1,321 @@
+# Default values for minlog.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+#imagePullSecrets: []
+# This is to override the chart name.
+nameOverride: ""
+fullnameOverride: ""
+
+# This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
+minlog:
+  minlog:
+    # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
+    image:
+      repository: crpi-2re4a582sqaza89h.cn-hangzhou.personal.cr.aliyuncs.com/venomous/minlog
+      # This sets the pull policy for images.
+      pullPolicy: IfNotPresent
+      # Overrides the image tag whose default is the chart appVersion.
+      tag: "latest"
+  # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
+  alloy:
+    # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
+    image:
+      repository: crpi-2re4a582sqaza89h.cn-hangzhou.personal.cr.aliyuncs.com/venomous/alloy
+      # This sets the pull policy for images.
+      pullPolicy: IfNotPresent
+      tag: "v1.9.0"
+    resources: 
+      # We usually recommend not to specify default resources and to leave this as a conscious
+      # choice for the user. This also increases chances charts run on environments with little
+      # resources, such as Minikube. If you do want to specify resources, uncomment the following
+      # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+
+  # This is for setting Kubernetes Annotations to a Pod.
+  # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  podAnnotations: {}
+  # This is for setting Kubernetes Labels to a Pod.
+  # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  podLabels: {}
+
+  podSecurityContext: {}
+    # fsGroup: 2000
+
+  securityContext: {}
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1000
+
+
+  # This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+
+  volumes:
+    alloydata: 
+      hostPath: 
+        path: /var/lib/alloy/data
+        type: DirectoryOrCreate
+    containerslog: 
+      hostPath: 
+        path: /var/log/containers
+        type: Directory
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+logconfig:
+  namespaces: ""
+  runningonly: true
+  lokiwriteservice: "loki.{{ .Release.Namespace }}.svc.cluster.local"
+  lokiwriteport: 3100
+
+#global:
+#  imagePullSecrets: []
+loki:
+  deploymentMode: SimpleScalable
+  loki:
+    image:
+      registry: null
+      repository: crpi-2re4a582sqaza89h.cn-hangzhou.personal.cr.aliyuncs.com/venomous/loki
+      tag: 3.4.2
+    auth_enabled: false
+    schemaConfig:
+      configs:
+        - from: "2024-04-01"
+          store: tsdb
+          object_store: s3
+          schema: v13
+          index:
+            prefix: loki_index_
+            period: 24h
+    ingester:
+      chunk_encoding: snappy
+    querier:
+      # Default is 4, if you have enough memory and CPU you can increase, reduce if OOMing
+      max_concurrent: 4
+    pattern_ingester:
+      enabled: true
+    limits_config:
+      allow_structured_metadata: true
+      volume_enabled: true
+    storage:
+      # aliyun oss settings
+      type: s3
+        #s3:
+        #  s3: oss-cn-beijing.aliyuncs.com
+        #  endpoint: oss-cn-beijing.aliyuncs.com
+        #  region: cn-beijing
+        #  accessKeyId: ""
+        #  secretAccessKey: ""
+      bucketNames:
+        chunks: minlog-chunks
+        admin: minlog-admin
+        ruler: minlog-ruler
+    podSecurityContext:
+      fsGroup: 0
+      runAsGroup: 0
+      runAsNonRoot: false
+      runAsUser: 0
+
+  memcached:
+    podSecurityContext:
+      runAsNonRoot: false
+      fsGroup: 0
+      runAsGroup: 0
+      runAsUser: 0
+    #image:
+      # -- Memcached Docker image repository
+      #  repository: crpi-2re4a582sqaza89h.cn-hangzhou.personal.cr.aliyuncs.com/venomous/memcached
+      # -- Memcached Docker image tag
+      #  tag: 1.6.38-alpine
+
+  memcachedExporter:
+    # -- Whether memcached metrics should be exported
+    enabled: false
+
+  resultsCache:
+    allocatedMemory: 1024
+  chunksCache:
+    allocatedMemory: 2048
+
+  read:
+    replicas: 2
+
+  write:
+    replicas: 3 # To ensure data durability with replication
+
+    # either affinity or nodeselector, affinity is better
+    # #affinity
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: minlog.component/loki.write
+              operator: In
+              values:
+              - write
+              - writebackend
+
+    # PVC enabled, specify the storageclass and size, even if it is default 
+    # The simplest deployment topology, high performance SAN
+    # pv(s) must have been created if local storage(name/size/storageClass flowing )
+    #persistence:
+    #  storageClass: mystorageclass 
+    #  size: 2000G
+
+    # hostPath enabled()
+    #persistence:
+    #  volumeClaimsEnabled: false
+    #  dataVolumehostPath:
+    #    hostPath:
+    #      path: /data/minlog/loki.write
+    #      type: DirectoryOrCreate
+
+  backend:
+    replicas: 2
+    # #affinity
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: minlog.component/loki.backend
+                operator: In
+                values:
+                - backend
+                - writebackend
+            topologyKey: kubernetes.io/hostname
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: minlog.component/loki.backend
+              operator: In
+              values:
+              - backend
+              - writebackend
+    # hostPath enabled()
+    #persistence:
+    #  volumeClaimsEnabled: false
+    #  dataVolumehostPath:
+    #    hostPath:
+    #      path: /data/minlog/loki.backend
+    #      type: DirectoryOrCreate
+  #sidecar:
+  #  image:
+  #    # -- The Docker registry and image for the k8s sidecar
+  #    repository: crpi-2re4a582sqaza89h.cn-hangzhou.personal.cr.aliyuncs.com/venomous/k8s-sidecar
+  #    # -- Docker image tag
+  #    tag: 1.30.2
+
+    
+  # Enable minio for storage
+  minio:
+    replicas: 2
+    #enabled: true
+    drivesPerNode: 1
+    mode: distributed
+    rootUser: "mroot"
+    rootPassword: "mrootPassword"
+    ## Set image, imageTag, and imagePullPolicy. mode is used to indicate the
+    #image:
+    #  repository: crpi-2re4a582sqaza89h.cn-hangzhou.personal.cr.aliyuncs.com/venomous/minio
+    #  tag: RELEASE.2024-12-18T13-15-44Z
+    #mcImage:
+    #  repository: crpi-2re4a582sqaza89h.cn-hangzhou.personal.cr.aliyuncs.com/venomous/mc
+    #  tag: 2024-12-18T13-15-44Z
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: minlog.component/minio
+              operator: In
+              values:
+              - data
+    #persistence:
+    #  enabled: true
+    #  type: hostPath
+    #  parentdirectory: /data/minlog/minio
+
+  gateway:
+    service:
+      type: NodePort
+
+
+grafana:
+  #global:
+  replicas: 1
+  #image:
+  #  repository: crpi-2re4a582sqaza89h.cn-hangzhou.personal.cr.aliyuncs.com/venomous/grafana
+  #  tag: "12.0.0"
+
+  # grafana administrator settings
+  adminUser: minlog
+  adminPassword: minlogPassword
+
+  ingress:
+    enabled: false
+    path: /
+    pathType: Prefix
+    hosts:
+      - chart-example.local
+
+
+    tls: []
+    #  - secretName: chart-example-tls
+    #    hosts:
+    #      - chart-example.local
+
+  affinity: 
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: loki.component 
+            operator: In
+            values:
+            - backend
+            - writebackend
+
+  useStatefulSet: true
+  # hostPath enabled()
+  #persistence:
+  #  type: hostPath
+  #  enabled: true
+  #  hostPath:
+  #    path: /data/grafana/data
+  #    type: DirectoryOrCreate

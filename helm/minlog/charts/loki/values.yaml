@@ -94,10 +94,10 @@ loki:
   revisionHistoryLimit: 10
   # -- The SecurityContext for Loki pods
   podSecurityContext:
-    fsGroup: 10001
-    runAsGroup: 10001
-    runAsNonRoot: true
-    runAsUser: 10001
+    fsGroup: 0
+    runAsGroup: 0
+    runAsNonRoot: false
+    runAsUser: 0
   # -- The SecurityContext for Loki containers
   containerSecurityContext:
     readOnlyRootFilesystem: true
@@ -640,10 +640,10 @@ enterprise:
     extraVolumeMounts: []
     # -- Run containers as user `enterprise-logs(uid=10001)`
     securityContext:
-      runAsNonRoot: true
-      runAsGroup: 10001
-      runAsUser: 10001
-      fsGroup: 10001
+      runAsNonRoot: false
+      runAsGroup: 0
+      runAsUser: 0
+      fsGroup: 0
     # -- Environment variables from secrets or configmaps to add to the tokengen pods
     extraEnvFrom: []
     # -- The name of the PriorityClass for tokengen Pods
@@ -679,10 +679,10 @@ enterprise:
     priorityClassName: null
     # -- Run containers as user `enterprise-logs(uid=10001)`
     securityContext:
-      runAsNonRoot: true
-      runAsGroup: 10001
-      runAsUser: 10001
-      fsGroup: 10001
+      runAsNonRoot: false
+      runAsGroup: 0
+      runAsUser: 0
+      fsGroup: 0
     # -- Provisioner image to Utilize
     image:
       # -- The Docker registry
@@ -926,9 +926,9 @@ adminApi:
   # `fsGroup` must not be specified, because these security options are applied
   # on container level not on Pod level.
   podSecurityContext:
-    runAsNonRoot: true
-    runAsGroup: 10001
-    runAsUser: 10001
+    runAsNonRoot: false
+    runAsGroup: 0
+    runAsUser: 0
   containerSecurityContext:
     readOnlyRootFilesystem: true
     capabilities:
@@ -1050,10 +1050,10 @@ gateway:
   extraVolumeMounts: []
   # -- The SecurityContext for gateway containers
   podSecurityContext:
-    fsGroup: 101
-    runAsGroup: 101
-    runAsNonRoot: true
-    runAsUser: 101
+    fsGroup: 0
+    runAsGroup: 0
+    runAsNonRoot: false
+    runAsUser: 0
   # -- The SecurityContext for gateway containers
   containerSecurityContext:
     readOnlyRootFilesystem: true
@@ -1210,10 +1210,10 @@ enterpriseGateway:
     annotations: {}
   # -- Run container as user `enterprise-logs(uid=10001)`
   podSecurityContext:
-    runAsNonRoot: true
-    runAsGroup: 10001
-    runAsUser: 10001
-    fsGroup: 10001
+    runAsNonRoot: false
+    runAsGroup: 0
+    runAsUser: 0
+    fsGroup: 0
   containerSecurityContext:
     readOnlyRootFilesystem: true
     capabilities:
@@ -3180,10 +3180,10 @@ memcached:
     pullPolicy: IfNotPresent
   # -- The SecurityContext override for memcached pods
   podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 11211
-    runAsGroup: 11211
-    fsGroup: 11211
+    runAsNonRoot: false
+    runAsUser: 0
+    runAsGroup: 0
+    fsGroup: 0
   # -- The name of the PriorityClass for memcached pods
   priorityClassName: null
   # -- The SecurityContext for memcached containers
@@ -3435,10 +3435,10 @@ rollout_operator:
   #     runAsGroup: null
   #     runAsUser: null
   podSecurityContext:
-    fsGroup: 10001
-    runAsGroup: 10001
-    runAsNonRoot: true
-    runAsUser: 10001
+    fsGroup: 0
+    runAsGroup: 0
+    runAsNonRoot: false
+    runAsUser: 0
     seccompProfile:
       type: RuntimeDefault
   # Set the container security context

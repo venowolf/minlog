@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minlog-confs
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "minlog.labels" . | nindent 4 }}
+data:
+  namespaces: {{ .Values.logconfig.namespaces | quote}}
+  runningonly: {{ .Values.logconfig.runningonly | quote }}
+  lokiep: {{ .Values.minlog.lokiurl | quote }}

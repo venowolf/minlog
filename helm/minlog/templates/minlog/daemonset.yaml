@@ -1,0 +1,120 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "minlog.fullname" $ }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "minlog.labels" $ | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "minlog.selectorLabels" $ | nindent 6 }}
+  {{- with .updateStrategy }}
+  updateStrategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      {{- with .annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "minlog.selectorLabels" $ | nindent 8 }}
+        {{- with .podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "minlog.fullname" $ }}
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml $.Values.minlog.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: init-minlog
+          image: "{{ .Values.minlog.minlog.image.repository }}:{{ .Values.minlog.minlog.image.tag }}"
+          imagePullPolicy: {{ $.Values.minlog.minlog.image.pullPolicy }}
+          volumeMounts:
+            - name: sharedvolume
+              mountPath: /etc/alloy
+          command: ["/usr/bin/bash", "/app/startup.sh"]
+          args: ["-k", "-r", "-c", "profile"]
+          env:
+            - name: LOKIEP
+              valueFrom:
+                configMapKeyRef:
+                  name: minlog-confs
+                  key: lokiep
+            - name: NAMESPACES
+              valueFrom:
+                configMapKeyRef:
+                  name: minlog-confs
+                  key: namespaces
+            - name: RUNNINGONLY
+              valueFrom:
+                configMapKeyRef:
+                  name: minlog-confs
+                  key: runningonly
+      containers:
+        - name: minlog
+          image: "{{ .Values.minlog.minlog.image.repository }}:{{ .Values.minlog.minlog.image.tag }}"
+          imagePullPolicy: {{ $.Values.minlog.minlog.image.pullPolicy }}
+          securityContext:
+            {{- toYaml $.Values.minlog.containerSecurityContext | nindent 12 }}
+          command: ["/usr/bin/bash", "/app/startup.sh"]
+          args: ["-k", "-r", "-c", "run"]
+          env:
+            - name: LOKIEP
+              valueFrom:
+                configMapKeyRef:
+                  name: minlog-confs
+                  key: lokiep
+            - name: NAMESPACES
+              valueFrom:
+                configMapKeyRef:
+                  name: minlog-confs
+                  key: namespaces
+            - name: RUNNINGONLY
+              valueFrom:
+                configMapKeyRef:
+                  name: minlog-confs
+                  key: runningonly
+          volumeMounts:
+            - name: sharedvolume
+              mountPath: /etc/alloy
+        - name: alloy
+          image: "{{ .Values.minlog.alloy.image.repository }}:{{ .Values.minlog.alloy.image.tag }}"
+          imagePullPolicy: {{ $.Values.minlog.alloy.image.pullPolicy }}
+          securityContext:
+            {{- toYaml $.Values.minlog.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - name: alloydata
+              mountPath: /var/lib/alloy/data
+            - name: containerslog
+              mountPath: /var/log/containers
+            - name: sharedvolume
+              mountPath: /etc/alloy
+      {{- with .dnsConfig }}
+      dnsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+      - name: alloydata
+        {{- toYaml $.Values.minlog.volumes.alloydata | nindent 8 }}
+      - name: containerslog
+        {{- toYaml $.Values.minlog.volumes.containerslog | nindent 8 }}
+      - name: sharedvolume
+        emptyDir:
+          sizeLimit: 10Mi
+          medium: Memory

@@ -216,3 +216,19 @@ otherwise it generates a random value.
     {{- include "minio.getValueFromSecret" (dict "Namespace" .Release.Namespace "Name" (include "minio.fullname" .) "Length" 40 "Key" "rootPassword") }}
   {{- end }}
 {{- end -}}
+
+{{- define "minio.hostpathvolumes" -}}
+{{- if eq (.Values.drivesPerNode | int) 1 }}
+- name: export
+  hostPath:
+    path: {{ .Values.persistence.parentdirectory }}/data
+    type: DirectoryOrCreate
+{{- else }}
+{{- range $ads := until (.Values.drivesPerNode | int) }}
+- name: export-{{ $ads }}
+  hostPath:
+    path: {{ $.Values.persistence.parentdirectory }}/data-{{ $ads }}
+    type: DirectoryOrCreate
+{{- end }}
+{{- end }}
+{{- end }}

@@ -141,9 +141,15 @@ trustedCertsSecret: ""
 ## Enable persistence using Persistent Volume Claims
 ## ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
 ##
+
+
 persistence:
   enabled: true
+  type: "pvc"
   annotations: {}
+
+  ## using local hostpath as storage
+  parentdirectory: "/data/minio"
 
   ## A manually managed Persistent Volume and Claim
   ## Requires persistence.enabled: true
@@ -270,7 +276,7 @@ topologySpreadConstraints: []
 ## Add stateful containers to have security context, if enabled MinIO will run as this
 ## user and group NOTE: securityContext is only enabled if persistence.enabled=true
 securityContext:
-  enabled: true
+  enabled: false
   runAsUser: 1000
   runAsGroup: 1000
   fsGroup: 1000
